@@ -73,8 +73,8 @@ var addUser = React.createClass({
 
     _onTeamStoreChange: function(payload) {
         this.setState({
-            textAreaDisabled: payload.currentTeam === 'Pick Your Team...',
-            buttonDisabled: payload.currentTeam === 'Pick Your Team...',
+            textAreaDisabled: payload.currentTeam.name === '',
+            buttonDisabled: payload.currentTeam.name === '',
             currentTeam: payload.currentTeam 
         })
     },
@@ -86,7 +86,9 @@ var addUser = React.createClass({
     },
 
     _onTeamMemberStoreChange: function(payload) {
-        buttonDisabled: payload.newTeamMemberDisabled
+        this.setState({
+            buttonDisabled: payload.newMemberButtonDisabled
+        });
     }
 });
 
