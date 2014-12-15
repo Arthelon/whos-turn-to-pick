@@ -1,36 +1,28 @@
 /** @jsx React.DOM */
 'use strict';
+var Reflux = require('reflux');
 var React = require('react');
+
 var TeamActionCreators = require('../actions/teamActionCreators');
 var TextAreaActionCreators = require('../actions/textAreaValueActionCreators');
+
 var TeamStore = require('../stores/teamStore');
-var TextAreaValesStore = require('../stores/textAreaValuesStore');
+var TextAreaValuesStore = require('../stores/textAreaValuesStore');
 
 var uniqueKey = 0;
 
-function getStateFromStores() {
-    return {
-        teams: TeamStore.getAllTeams(),
-        value: TeamStore.getCurrentTeam(),
-        textValue: TextAreaValesStore.getNewTeamValue()
-    };
-}
-
 var teamList = React.createClass({
+    mixins: [
+        Reflux.listenTo(TeamStore, '_onTeamStoreChange'),
+        Reflux.listenTo(TextAreaValuesStore, '_onTextAreaValuesStoreChange')
+    ],
 
     getInitialState: function() {
-        return getStateFromStores();
-    },
-
-
-    componentDidMount: function() {
-        TeamStore.addChangeListener(this._onChange);
-        TextAreaValesStore.addChangeListener(this._onChange);
-    },
-
-    componentWillUnmount: function() {
-        TeamStore.removeChangeListener(this._onChange);
-        TextAreaValesStore.removeChangeListener(this._onChange);
+        return {
+            teams: [],
+            value: '',
+            textValue: ''
+        };
     },
 
     render: function() {
@@ -62,7 +54,7 @@ var teamList = React.createClass({
                     <button type="button" className="btn btn-md btn-primary" disabled={createTeamDisabled} onClick={this._handleClick}>Create Team</button>
                     <div className="dropdown" style={floatRight}>
                         <button className="btn btn-default dropdown-toggle" type="button" id="dropdownMenu1" data-toggle="dropdown">
-                            {this.state.value + "  "}
+                            {this.state.value === '' ? 'Pick Your team...  ' : this.state.value + '  '}
                             <span className="caret"></span>
                         </button>
                         <ul className="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
@@ -83,7 +75,7 @@ var teamList = React.createClass({
     },
 
     _handleSelectionChange: function(team) {
-        TeamActionCreators.selectTeam(team);
+        TeamActionCreators.selectTeam(team.name);
     },
 
     teamExists: function(teamName) {
@@ -95,11 +87,17 @@ var teamList = React.createClass({
         return false;
     },
 
-    /**
-    * Event handler for 'change' events coming from the TeamStore
-    */
-    _onChange: function() {
-        this.setState(getStateFromStores());
+    _onTeamStoreChange: function(payload) {
+        this.setState({
+            teams: payload.teams,
+            value: payload.currentTeam.name
+        });
+    },
+
+    _onTextAreaValuesStoreChange: function(payload) {
+        this.setState({
+            textValue: payload.newTeamValue
+        });
     }
 });
 

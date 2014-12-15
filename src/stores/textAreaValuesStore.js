@@ -1,69 +1,38 @@
-var LunchPickerDispatcher = require('../dispatcher/lunchPickerDispatcher');
-var Constants = require('../constants/constants');
-var EventEmitter = require('events').EventEmitter;
-var merge = require('react/lib/merge');
+var Reflux = require('reflux');
 
-var ActionTypes = Constants.ActionTypes;
-var CHANGE_EVENT = 'change';
+var TextAreaValueActionCreators = require('../actions/TextAreaValueActionCreators');
+var ServerActionCreators = require('../actions/ServerActionCreators');
 
-var _newTeamMemberValue = '';
-var _newTeamValue = '';
+var data = {
+    newTeamMemberValue: '',
+    newTeamValue:''
+};
 
+function _handleNewTeamMemberValueChange(value) {
+    data.newTeamMemberValue = value;
+    this.trigger(data);
+}
 
-var TextAreaValueStore = merge(EventEmitter.prototype, {
+function _handleNewTeamValueChange(name) {
+    data.newTeamValue = name.length > 20 ? data.newTeamValue : name;
+    this.trigger(data);
+}
 
-    emitChange: function() {
-        this.emit(CHANGE_EVENT);
-    },
+function _teamMemberCreatedSuccess() {
+    data.newTeamMemberValue = '';
+    this.trigger(data);
+}
 
-    addChangeListener: function(callback) {
-        this.on(CHANGE_EVENT, callback);
-    },
+function _teamCreatedSuccess() {
+    data.newTeamValue = '';
+    this.trigger(data);
+}
 
-    removeChangeListener: function(callback) {
-        this.removeListener(CHANGE_EVENT, callback);
-    },
-
-    getNewTeamMemberValue: function() {
-        return _newTeamMemberValue;
-    },
-
-    getNewTeamValue: function() {
-        return _newTeamValue;
+module.exports = Reflux.createStore({
+    init: function() {
+        this.listenTo(TextAreaValueActionCreators.handleNewTeamMemberValueChange, _handleNewTeamMemberValueChange);
+        this.listenTo(TextAreaValueActionCreators.handleNewTeamValueChange, _handleNewTeamValueChange);
+        this.listenTo(ServerActionCreators.teamMemberCreatedSuccess, _teamMemberCreatedSuccess);
+        this.listenTo(ServerActionCreators.teamCreatedSuccess, _teamCreatedSuccess);
     }
-
 });
-
-TextAreaValueStore.dispatchToken = LunchPickerDispatcher.register(function(payload) {
-    var action = payload.action;
-
-    switch(action.type) {
-        case ActionTypes.UPDATE_NEW_TEAM_MEMBER_VALUE:
-            _newTeamMemberValue = action.value;
-            TextAreaValueStore.emitChange();
-            break;
-
-        case ActionTypes.UPDATE_NEW_TEAM_VALUE:
-            var name = action.value;
-            _newTeamValue = name.length > 20 ? _newTeamValue : name;
-            TextAreaValueStore.emitChange();
-            break;
-
-        case ActionTypes.CREATE_TEAM_MEMBER_SUCCESS:
-            _newTeamMemberValue = '';
-            TextAreaValueStore.emitChange();
-            break;
-
-        case ActionTypes.CREATE_TEAM_SUCCESS:
-            _newTeamValue = '';
-            TextAreaValueStore.emitChange();
-            break;
-
-
-        default:
-            // do nothing
-    }
-
-});
-
-module.exports = TextAreaValueStore;

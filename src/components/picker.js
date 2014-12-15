@@ -1,30 +1,21 @@
 /** @jsx React.DOM */
 'use strict';
+var Reflux = require('reflux');
 var React = require('react');
 var TeamMemberStore = require('../stores/teamMemberStore');
 var TeamMemberActionCreators = require('../actions/teamMemberActionCreators');
 
-
-
-function getStateFromStores() {
-    return {
-        teamMembers: TeamMemberStore.getAllTeamMembers(),
-        currentPicker: TeamMemberStore.getCurrentPicker(),
-        disabled: TeamMemberStore.getPickerDisabled()
-    };
-}
-
 var picker = React.createClass({
+    mixins: [
+        Reflux.listenTo(TeamMemberStore, '_onTeamMemberStoreChange')
+    ],
+
     getInitialState: function() {
-        return getStateFromStores();
-    },
-
-    componentDidMount: function() {
-        TeamMemberStore.addChangeListener(this._onChange);
-    },
-
-    componentWillUnmount: function() {
-        TeamMemberStore.removeChangeListener(this._onChange);
+        return {
+            teamMembers: [],
+            currentPicker: 'n/a',
+            disabled: true
+        };
     },
 
     render: function() {
@@ -63,7 +54,7 @@ var picker = React.createClass({
         }
         var pickerIndex = Math.floor(Math.random() * canPickMembers.length);
 
-        TeamMemberActionCreators.pick(canPickMembers[pickerIndex]);
+        TeamMemberActionCreators.pickTeamMember(canPickMembers[pickerIndex]);
     },
 
     formatDate: function(dateString) {
@@ -71,11 +62,12 @@ var picker = React.createClass({
         return (date.getMonth() + 1) + '/' + date.getDate() + '/' + (date.getYear() - 100);
     },
 
-    /**
-    * Event handler for 'change' events coming from the TeamStore
-    */
-    _onChange: function() {
-        this.setState(getStateFromStores());
+    _onTeamMemberStoreChange: function(payload) {
+        this.setState({
+            teamMembers: payload.teamMembers,
+            currentPicker: payload.currentPicker,
+            disabled: payload.pickerDisabled
+        });
     }
 });
 

@@ -17,7 +17,8 @@
   "dependencies": {
     "flux": "^2.0.0",
     "jquery": "^2.1.1",
-    "react": "~0.11"
+    "react": "~0.11",
+    "reflux": "^0.2.1"
   },
   "scripts": {
     "start": "watchify -o src/bundle.js -v -d .",

@@ -1,42 +1,55 @@
-var LunchPickerDispatcher = require('../dispatcher/lunchPickerDispatcher');
+var Reflux = require('reflux');
+
 var Constants = require('../constants/constants');
-var EndpointAPIUtils = require('../utils/endpointAPIUtils');
-var EventEmitter = require('events').EventEmitter;
-var merge = require('react/lib/merge');
 
 var TextAreaValueStore = require('../stores/textAreaValuesStore');
 
-var ActionTypes = Constants.ActionTypes;
-var PICK_THRESHOLD = Constants.Constants.PICK_THRESHOLD;
-var CHANGE_EVENT = 'change';
+var ServerActionCreators = require('../actions/serverActionCreators');
+var TextAreaValueActionCreators = require('../actions/textAreaValueActionCreators');
+var TeamMemberActionCreators = require('../actions/teamMemberActionCreators');
 
-var _teamMembers = [];
-var _currentPicker = 'n/a';
-var _newMemberButtonDisabled = true;
+var PICK_THRESHOLD = Constants.PICK_THRESHOLD;
+var data = {
+    teamMembers: [],
+    currentPicker: 'n/a',
+    newMemberButtonDisabled: true
+}
+
+function getPickerDisabled() {
+    var noEligiblePickers = true;
+    for (var i = 0; i < data.teamMembers.length; i++) {
+        if (!(data.teamMembers[i].active === false || data.teamMembers[i].hasPicked)) {
+            noEligiblePickers = false;
+            break;
+        }
+    }
+    return data.currentPicker !== 'n/a' && new Date() - new Date(data.currentPicker.lastPicked) < PICK_THRESHOLD ||
+            data.teamMembers.length === 0 || noEligiblePickers;
+}
 
 function updateCurrentPicker() {
     var recentPick = 0;
     var memberPicked;
-    _currentPicker = 'n/a';
+    data.currentPicker = 'n/a';
 
-    for (var i = 0; i < _teamMembers.length; i++) {
-        memberPicked = new Date(_teamMembers[i].lastPicked);
+    for (var i = 0; i < data.teamMembers.length; i++) {
+        memberPicked = new Date(data.teamMembers[i].lastPicked);
         if (recentPick < memberPicked) {
             recentPick = memberPicked;
-            _currentPicker = _teamMembers[i];
+            data.currentPicker = data.teamMembers[i];
         }
     }
 }
 
 function processTeamMembers(teamMembers) {
-    _teamMembers = teamMembers || [];
+    data.teamMembers = teamMembers || [];
     updateCurrentPicker();
 }
 
 function removeTeamMember(teamMember) {
-    for (var i = 0; i < _teamMembers.length; i++) {
-        if (teamMember.name === _teamMembers[i].name) {
-            _teamMembers.splice(i, 1);
+    for (var i = 0; i < data.teamMembers.length; i++) {
+        if (teamMember.name === data.teamMembers[i].name) {
+            data.teamMembers.splice(i, 1);
             break;
         }
     }
@@ -45,9 +58,9 @@ function removeTeamMember(teamMember) {
 
 function updateTeamMember(updatedMembers) {
     for (var i = 0; i < updatedMembers.length; i++) {
-        for (var j = 0; j < _teamMembers; j++) {
-            if (updatedMembers[i].name === _teamMembers[j].name) {
-                _teamMembers[j] = updatedMembers[i];
+        for (var j = 0; j < data.teamMembers; j++) {
+            if (updatedMembers[i].name === data.teamMembers[j].name) {
+                data.teamMembers[j] = updatedMembers[i];
                 break;
             }
         }
@@ -57,130 +70,95 @@ function updateTeamMember(updatedMembers) {
 
 function checkBucketsForReset() {
     var needReset = true;
-    for (var i = 0; i < _teamMembers.length; i++) {
-        if (!_teamMembers[i].hasPicked) {
+    for (var i = 0; i < data.teamMembers.length; i++) {
+        if (!data.teamMembers[i].hasPicked) {
             needReset = false;
         }
     }
     if (needReset) {
-        for (var j = 0; j < _teamMembers.length; j++) {
-            _teamMembers[j].hasPicked = false;
+        for (var j = 0; j < data.teamMembers.length; j++) {
+            data.teamMembers[j].hasPicked = false;
         }
-        EndpointAPIUtils.updateTeamMembers(_teamMembers);
+        TeamMemberActionCreators.updateTeamMembers(data.teamMembers);
     }
 }
 
-var TeamMemberStore = merge(EventEmitter.prototype, {
 
-    emitChange: function() {
-        this.emit(CHANGE_EVENT);
-    },
+function _getTeamMembersSuccess(action) {
+    processTeamMembers(action.teamMembers);
+    triggerChange(this);
+}
 
-    addChangeListener: function(callback) {
-        this.on(CHANGE_EVENT, callback);
-    },
+function _teamMemberCreatedSuccess(action) {
+    data.teamMembers.push(action.teamMember);
+    data.newMemberButtonDisabled = true;
+    triggerChange(this);
+}
 
-    removeChangeListener: function(callback) {
-        this.removeListener(CHANGE_EVENT, callback);
-    },
+function _teamMemberRemovedSuccess(action) {
+    removeTeamMember(action.teamMember);
+    checkBucketsForReset();
+    triggerChange(this);
+}
 
-    getCurrentPicker: function() {
-        return _currentPicker;
-    },
+function _teamMembersUpdateSuccess(action) {
+    checkBucketsForReset();
+    updateTeamMember(action.teamMembers);   
+    triggerChange(this);
+}
 
-    getAllTeamMembers: function() {
-        return _teamMembers;
-    },
-
-    getPickerDisabled: function() {
-        var noEligiblePickers = true;
-        for (var i = 0; i < _teamMembers.length; i++) {
-            if (!(_teamMembers[i].active === false || _teamMembers[i].hasPicked)) {
-                noEligiblePickers = false;
+function _handleNewTeamMemberValueChange(newValue) {
+    if (newValue === '') {
+        data.newMemberButtonDisabled = true;
+    } else {
+        data.newMemberButtonDisabled = false;
+        for (var i = 0; i < data.teamMembers.length; i++) {
+            if (newValue === data.teamMembers[i].name) {
+                data.newMemberButtonDisabled = true;
                 break;
             }
         }
-        return _currentPicker !== 'n/a' && new Date() - new Date(_currentPicker.lastPicked) < PICK_THRESHOLD ||
-                _teamMembers.length === 0 || noEligiblePickers;
-    },
-
-    getNewTeamMemberDisabled: function() {
-        return _newMemberButtonDisabled;
     }
+    triggerChange(this);
+}
 
-});
+function _teamCreatedSuccess() {
+    data.teamMembers = [];
+    data.currentPicker = 'n/a';  
+    triggerChange(this);
+}
 
-TeamMemberStore.dispatchToken = LunchPickerDispatcher.register(function(payload) {
-    var action = payload.action;
+function _teamRemoveSuccess() {
+    data.teamMembers = [];
+    data.currentPicker = 'n/a';
+    triggerChange(this);
+}
 
-    switch(action.type) {
-        case ActionTypes.GET_TEAM_MEMBERS_SUCCESS:
-            processTeamMembers(action.rawMessages.teamMembers);
-            TeamMemberStore.emitChange();
+function _toggleActiveUserState(teamMember) {
+    var name = teamMember.name;
+    for (var i = 0; i < data.teamMembers.length; i++) {
+        if (data.teamMembers[i].name === name) {
+            data.teamMembers[i].active = data.teamMembers[i].active === undefined ? false : !data.teamMembers[i].active;
             break;
-
-        case ActionTypes.CREATE_TEAM_MEMBER_SUCCESS:
-            _teamMembers.push(action.rawMessages.teamMember);
-            _newMemberButtonDisabled = true;
-            TeamMemberStore.emitChange();
-            break;
-
-        case ActionTypes.REMOVE_TEAM_MEMBER_SUCCESS:
-            removeTeamMember(action.rawMessages.teamMember);
-            checkBucketsForReset();
-            TeamMemberStore.emitChange();
-            break;
-
-        case ActionTypes.UPDATE_TEAM_MEMBER_SUCCESS:
-            checkBucketsForReset();
-            updateTeamMember(action.rawMessages.teamMembers);
-            TeamMemberStore.emitChange();
-            break;
-
-        case ActionTypes.UPDATE_NEW_TEAM_MEMBER_VALUE:
-            LunchPickerDispatcher.waitFor([TextAreaValueStore.dispatchToken]);
-            var newValue = TextAreaValueStore.getNewTeamMemberValue();
-            if (newValue === '') {
-                _newMemberButtonDisabled = true;
-            } else {
-                _newMemberButtonDisabled = false;
-                for (var i = 0; i < _teamMembers.length; i++) {
-                    if (newValue === _teamMembers[i].name) {
-                        _newMemberButtonDisabled = true;
-                        break;
-                    }
-                }
-            }
-            TeamMemberStore.emitChange();
-            break;
-
-        case ActionTypes.CREATE_TEAM_SUCCESS:
-            _teamMembers = [];
-            _currentPicker = 'n/a';
-            TeamMemberStore.emitChange();
-            break;
-
-        case ActionTypes.REMOVE_TEAM_SUCCESS:
-            _teamMembers = [];
-            _currentPicker = 'n/a';
-            TeamMemberStore.emitChange();
-            break;
-
-        case ActionTypes.TOGGLE_ACTIVE_USER:
-            var name = action.teamMember.name;
-            for (var i = 0; i < _teamMembers.length; i++) {
-                if (_teamMembers[i].name === name) {
-                    _teamMembers[i].active = _teamMembers[i].active === undefined ? false : !_teamMembers[i].active;
-                    break;
-                }
-            }
-
-            TeamMemberStore.emitChange();
-            break;
-        default:
-            // do nothing
+        }
     }
+    triggerChange(this);
+}
 
+function triggerChange(store) {
+    data.pickerDisabled = getPickerDisabled();
+    store.trigger(data);
+}
+
+module.exports = Reflux.createStore({
+    init: function() {
+        this.listenTo(ServerActionCreators.getTeamMembersSuccess, _getTeamMembersSuccess);
+        this.listenTo(ServerActionCreators.teamMemberCreatedSuccess, _teamMemberCreatedSuccess);
+        this.listenTo(ServerActionCreators.teamMemberRemovedSuccess, _teamMemberRemovedSuccess);
+        this.listenTo(ServerActionCreators.teamMembersUpdateSuccess, _teamMembersUpdateSuccess);
+        this.listenTo(TextAreaValueActionCreators.handleNewTeamMemberValueChange, _handleNewTeamMemberValueChange);
+        this.listenTo(ServerActionCreators.teamCreatedSuccess, _teamCreatedSuccess);
+        this.listenTo(ServerActionCreators.teamRemoveSuccess, _teamRemoveSuccess);
+        this.listenTo(TeamMemberActionCreators.toggleActiveUserState, _toggleActiveUserState);
+    }
 });
-
-module.exports = TeamMemberStore;

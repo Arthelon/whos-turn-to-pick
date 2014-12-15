@@ -1,35 +1,29 @@
 /** @jsx React.DOM */
 'use strict';
+var Reflux = require('reflux');
 var React = require('react');
+
 var TeamStore = require('../stores/teamStore');
 var TextAreaValuesStore = require('../stores/textAreaValuesStore');
 var TeamMemberStore = require('../stores/teamMemberStore');
+
 var TeamMemberActionCreators = require('../actions/teamMemberActionCreators');
 var TextAreaValueActionCreators = require('../actions/textAreaValueActionCreators');
 
-function getStateFromStores() {
-    return {
-        textAreaDisabled: TeamStore.getCurrentTeam() === 'Pick Your Team...',
-        buttonDisabled: TeamStore.getCurrentTeam() === 'Pick Your Team...' || TeamMemberStore.getNewTeamMemberDisabled(),
-        newMemberValue: TextAreaValuesStore.getNewTeamMemberValue()
-    };
-}
-
 var addUser = React.createClass({
+    mixins: [
+        Reflux.listenTo(TeamStore, '_onTeamStoreChange'),
+        Reflux.listenTo(TextAreaValuesStore, '_onTextAreaValuesStoreChange'),
+        Reflux.listenTo(TeamMemberStore, '_onTeamMemberStoreChange')
+    ],
+
     getInitialState: function() {
-        return getStateFromStores();
-    },
-
-    componentDidMount: function() {
-        TeamStore.addChangeListener(this._onChange);
-        TextAreaValuesStore.addChangeListener(this._onChange);
-        TeamMemberStore.addChangeListener(this._onChange);
-    },
-
-    componentWillUnmount: function() {
-        TeamStore.removeChangeListener(this._onChange);
-        TextAreaValuesStore.removeChangeListener(this._onChange);
-        TeamMemberStore.removeChangeListener(this._onChange);
+        return {
+            textAreaDisabled: true,
+            buttonDisabled: true,
+            newMemberValue: '',
+            currentTeam: ''
+        };
     },
 
     render: function() {
@@ -67,7 +61,8 @@ var addUser = React.createClass({
         var newMember = {
             name: this.state.newMemberValue,
             hasPicked: false,
-            lastPicked: new Date(0)
+            lastPicked: new Date(0),
+            team: this.state.currentTeam.name
         };
         TeamMemberActionCreators.createTeamMember(newMember);
     },
@@ -76,11 +71,22 @@ var addUser = React.createClass({
         TextAreaValueActionCreators.handleNewTeamMemberValueChange(event.target.value);
     },
 
-    /**
-    * Event handler for 'change' events coming from the TeamStore
-    */
-    _onChange: function() {
-        this.setState(getStateFromStores());
+    _onTeamStoreChange: function(payload) {
+        this.setState({
+            textAreaDisabled: payload.currentTeam === 'Pick Your Team...',
+            buttonDisabled: payload.currentTeam === 'Pick Your Team...',
+            currentTeam: payload.currentTeam 
+        })
+    },
+
+    _onTextAreaValuesStoreChange: function(payload) {
+        this.setState({
+            newMemberValue: payload.newTeamMemberValue
+        });
+    },
+
+    _onTeamMemberStoreChange: function(payload) {
+        buttonDisabled: payload.newTeamMemberDisabled
     }
 });
 

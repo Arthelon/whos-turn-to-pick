@@ -3,11 +3,11 @@
 var ReactComponent = require('./components/component');
 var React = require('react');
 var $ = require('jquery');
-var EndpointAPIUtils = require('./utils/EndpointAPIUtils');
+var TeamActionCreators = require ('./actions/TeamActionCreators')
 
 function loginSuccess(json) {
     //console.log('success!!! Welcome, ' + json.author);
-    EndpointAPIUtils.getTeams();
+    TeamActionCreators.getTeams();
 }
 
 function loginFailed() {

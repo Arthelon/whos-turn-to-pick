@@ -1,96 +1,56 @@
-var LunchPickerDispatcher = require('../dispatcher/lunchPickerDispatcher');
-var Constants = require('../constants/constants');
+var Reflux = require('reflux');
+
+var ServerActionCreators = require('../actions/serverActionCreators');
+var TeamActionCreators = require('../actions/TeamActionCreators');
+
 var EndpointAPIUtils = require('../utils/endpointAPIUtils');
-var EventEmitter = require('events').EventEmitter;
-var merge = require('react/lib/merge');
 
-var ActionTypes = Constants.ActionTypes;
-var CHANGE_EVENT = 'change';
-
-var _teams = [];
-var _currentTeam = {
-    name: 'Pick Your Team...'
+var data = {
+    teams: [],
+    currentTeam: {
+        name: ''
+    }
 };
 
 function removeTeam(team) {
     var teamName = team.name;
-    for (var i = 0; i < _teams.length; i++) {
-        if (_teams[i].name === teamName) {
-            _teams.splice(i, 1);
+    for (var i = 0; i < data.teams.length; i++) {
+        if (data.teams[i].name === teamName) {
+            data.teams.splice(i, 1);
             break;
         }
     }
 }
 
-var TeamStore = merge(EventEmitter.prototype, {
+function _getTeamsSuccess(action) {
+    data.teams = action.teams || [];
+    this.trigger(data);
+}
 
-    emitChange: function() {
-        this.emit(CHANGE_EVENT);
-    },
+function _teamRemoveSuccess(action) {
+    removeTeam(action.team);
+    data.currentTeam = {
+        name: ''
+    }; 
+    this.trigger(data);
+}
 
-    /**
-    * @param {function} callback
-    */
-    addChangeListener: function(callback) {
-        this.on(CHANGE_EVENT, callback);
-    },
+function _teamCreatedSuccess(action) {
+    data.teams.push(action.team);
+    data.currentTeam = action.team;
+    this.trigger(data);
+}
 
-    removeChangeListener: function(callback) {
-        this.removeListener(CHANGE_EVENT, callback);
-    },
+function _selectTeam(name) {
+    data.currentTeam.name = name;
+    this.trigger(data);
+}
 
-    get: function(id) {
-        return _teams[id];
-    },
-
-    getAllTeams: function() {
-        return _teams;
-    },
-
-    getCurrentTeam: function() {
-        return _currentTeam.name;
+module.exports = Reflux.createStore({
+    init: function() {
+        this.listenTo(ServerActionCreators.getTeamsSuccess, _getTeamsSuccess);
+        this.listenTo(ServerActionCreators.teamRemoveSuccess, _teamRemoveSuccess);
+        this.listenTo(ServerActionCreators.teamCreatedSuccess, _teamCreatedSuccess);
+        this.listenTo(TeamActionCreators.selectTeam, _selectTeam);
     }
-
 });
-
-TeamStore.dispatchToken = LunchPickerDispatcher.register(function(payload) {
-    var action = payload.action;
-
-    switch(action.type) {
-        case ActionTypes.GET_TEAMS_SUCCESS:
-            _teams = action.rawMessages.teams || [];
-            TeamStore.emitChange();
-            break;
-
-        case ActionTypes.REMOVE_TEAM_SUCCESS:
-            removeTeam(action.rawMessages.team);
-            _currentTeam = {
-                name: 'Pick Your Team...'
-            };
-            TeamStore.emitChange();
-            break;
-
-        case ActionTypes.CREATE_TEAM_SUCCESS:
-            _teams.push(action.rawMessages.team);
-            _currentTeam = action.rawMessages.team;
-            TeamStore.emitChange();
-            break;
-
-        case ActionTypes.SELECT_TEAM:
-            _currentTeam = action.teamName;
-            EndpointAPIUtils.getTeamMembers(_currentTeam.name);
-            TeamStore.emitChange();
-            break;
-
-        case ActionTypes.CREATE_TEAM_MEMBER:
-            action.newMember.team = _currentTeam.name;
-            EndpointAPIUtils.createTeamMember(action.newMember);
-            break;
-
-        default:
-            // do nothing
-    }
-
-});
-
-module.exports = TeamStore;

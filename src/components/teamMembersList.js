@@ -1,33 +1,27 @@
 /** @jsx React.DOM */
 'use strict';
+var Reflux = require('reflux');
 var React = require('react');
+
 var TeamActionCreators = require('../actions/teamActionCreators');
 var TeamMemberActionCreators = require('../actions/teamMemberActionCreators');
+
 var TeamStore = require('../stores/teamStore');
 var TeamMemberStore = require('../stores/teamMemberStore');
 
 var uniqueKey = 0;
 
-function getStateFromStores() {
-    return {
-        teamMembers: TeamMemberStore.getAllTeamMembers(),
-        currentTeam: TeamStore.getCurrentTeam()
-    }
-}
-
 var teamMembersList = React.createClass({
+    mixins: [
+        Reflux.listenTo(TeamStore, '_onTeamStoreChange'),
+        Reflux.listenTo(TeamMemberStore, '_onTeamMemberStoreChange')
+    ],
+
     getInitialState: function() {
-        return getStateFromStores();
-    },
-
-    componentDidMount: function() {
-        TeamStore.addChangeListener(this._onChange);
-        TeamMemberStore.addChangeListener(this._onChange);
-    },
-
-    componentWillUnmount: function() {
-        TeamStore.removeChangeListener(this._onChange);
-        TeamMemberStore.removeChangeListener(this._onChange);
+        return {
+            teamMembers: [],
+            currentTeam: ''
+        };
     },
 
     render: function() {
@@ -79,7 +73,6 @@ var teamMembersList = React.createClass({
             if (teamMember.hasPicked) {
                 return <a className="list-group-item" key={'cantPick_' + uniqueKey++}>
                             {teamMember.name} {self.formatDate(teamMember.lastPicked)}
-                            <button type="button" className="btn btn-xs btn-primary" style={buttonStyle} onClick={handleDelete}>x</button>
                         </a>
             }
         });
@@ -154,13 +147,18 @@ var teamMembersList = React.createClass({
         return (date.getMonth() + 1) + '/' + date.getDate() + '/' + (date.getYear() % 100);
     },
 
-    /**
-    * Event handler for 'change' events coming from the TeamStore
-    */
-    _onChange: function() {
-        this.setState(getStateFromStores());
+    _onTeamStoreChange: function(payload) {
+        this.setState({
+            currentTeam: payload.currentTeam.name
+        });
+    },
+
+    _onTeamMemberStoreChange: function(payload) {
+        this.setState({
+            teamMembers: payload.teamMembers
+        });
     }
 });
 
 
-module.exports =  teamMembersList;
+module.exports = teamMembersList;
